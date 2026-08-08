@@ -1,0 +1,12 @@
+# انسخ هذه القيم إلى backend/.env بعد إنشاء المشروع
+# (عدّل اسم القاعدة والمستخدم وكلمة السر حسب MySQL عندك)
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=app_test
+DB_USERNAME=root
+DB_PASSWORD=
+
+# عنوان الخدمات كما تراه الواجهة
+# ويوضع في frontend/.env :  VITE_API_URL=http://localhost:8000/api/v1

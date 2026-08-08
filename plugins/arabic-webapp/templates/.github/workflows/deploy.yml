@@ -1,0 +1,93 @@
+name: النشر
+
+on:
+  push:
+    branches: [main, staging]
+
+jobs:
+  فحص:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: فحص وبناء الواجهة
+        working-directory: frontend
+        run: |
+          npm ci
+          npx tsc --noEmit
+          npm run build
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+
+      - name: اختبار الخدمات
+        working-directory: backend
+        run: |
+          composer install --prefer-dist --no-progress
+          cp .env.example .env
+          php artisan key:generate
+          php artisan test
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+  نشر:
+    needs: فحص
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist
+
+      - name: تحديد البيئة
+        id: env
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "app_path=/var/www/app"      >> $GITHUB_OUTPUT
+            echo "api_path=/var/www/api"      >> $GITHUB_OUTPUT
+          else
+            echo "app_path=/var/www/staging-app" >> $GITHUB_OUTPUT
+            echo "api_path=/var/www/staging-api" >> $GITHUB_OUTPUT
+          fi
+
+      - name: رفع الواجهة
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: "dist/*"
+          target: ${{ steps.env.outputs.app_path }}
+          strip_components: 1
+
+      - name: تحديث الخدمات
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ steps.env.outputs.api_path }}
+            mkdir -p backups
+            mysqldump -u "${{ secrets.DB_USER }}" -p"${{ secrets.DB_PASS }}" "${{ secrets.DB_NAME }}" \
+              > "backups/$(date +%F-%H%M).sql"
+            find backups -name '*.sql' -mtime +14 -delete
+            php artisan down --render="errors::503" || true
+            git pull origin ${{ github.ref_name }}
+            composer install --no-dev --optimize-autoloader
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            php artisan up

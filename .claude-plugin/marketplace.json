@@ -1,0 +1,17 @@
+{
+  "name": "arabic-admin-stack",
+  "version": "1.0.0",
+  "description": "أدوات بناء أنظمة إدارية عربية RTL بـ React و Laravel، مصممة لمستخدمين غير مبرمجين",
+  "owner": {
+    "name": "Khalid"
+  },
+  "plugins": [
+    {
+      "name": "arabic-webapp",
+      "displayName": "بناء تطبيق ويب عربي",
+      "description": "أمر واحد ينشئ مشروعًا كاملًا (React + TypeScript + Bootstrap RTL + Laravel + MySQL) مع أوامر عربية مبسّطة وحواجز أمان، موجّه لمستخدم لا يعرف البرمجة",
+      "source": "./plugins/arabic-webapp",
+      "category": "development"
+    }
+  ]
+}

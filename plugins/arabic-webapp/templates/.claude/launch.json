@@ -1,0 +1,29 @@
+{
+  // هذا الملف يجعل Claude يشغّل الواجهة والخدمات تلقائيًا
+  // ويعرض النظام حيًّا في لوحة المعاينة بجانب المحادثة.
+  // المتدرب لا يفتح طرفية ولا يشغّل أمرًا واحدًا.
+  "version": "0.0.1",
+
+  // Claude يفحص عمله بنفسه بعد كل تعديل: يلتقط لقطة، يضغط الأزرار،
+  // يملأ النماذج، ويصلح ما يجده. لا تعطّلها — هي أهم مكسب لمستخدم غير مبرمج.
+  "autoVerify": true,
+
+  "configurations": [
+    {
+      "name": "الواجهة",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "frontend",
+      "port": 5173,
+      "autoPort": true
+    },
+    {
+      "name": "الخدمات",
+      "runtimeExecutable": "php",
+      "runtimeArgs": ["artisan", "serve", "--port=8000"],
+      "cwd": "backend",
+      "port": 8000,
+      "autoPort": false
+    }
+  ]
+}

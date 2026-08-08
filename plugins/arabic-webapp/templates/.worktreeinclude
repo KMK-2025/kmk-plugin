@@ -1,0 +1,6 @@
+# الجلسات المتوازية في Claude Desktop تعمل في نسخ معزولة (worktrees).
+# هذه الملفات مستثناة من Git لكنها ضرورية لتشغيل المشروع،
+# فتُنسخ تلقائيًا إلى كل جلسة جديدة.
+backend/.env
+frontend/.env
+frontend/.env.local
