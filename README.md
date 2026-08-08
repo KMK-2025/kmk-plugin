@@ -1,4 +1,4 @@
-# سوق إضافات: arabic-admin-stack
+# سوق إضافات: kmk-marketplace
 
 إضافة واحدة تُدير بناء أنظمة إدارية عربية RTL بأمر واحد، موجّهة لمستخدمين لا يعرفون البرمجة.
 
@@ -6,7 +6,7 @@
 
 ```
 /plugin marketplace add KMK-2025/kmk-plugin
-/plugin install kmk-plugin@arabic-admin-stack
+/plugin install kmk-plugin@kmk-marketplace
 ```
 
 ## الاستخدام
