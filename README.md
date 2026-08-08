@@ -5,8 +5,8 @@
 ## التثبيت
 
 ```
-/plugin marketplace add <حسابك-على-GitHub>/<اسم-هذا-المستودع>
-/plugin install arabic-webapp@arabic-admin-stack
+/plugin marketplace add KMK-2025/kmk-plugin
+/plugin install kmk-plugin@arabic-admin-stack
 ```
 
 ## الاستخدام
@@ -23,7 +23,7 @@
 
 ```
 .claude-plugin/marketplace.json     ← فهرس السوق
-plugins/arabic-webapp/
+plugins/kmk-plugin/
 ├── .claude-plugin/plugin.json      ← تعريف الإضافة
 ├── skills/ابدأ/SKILL.md            ← الأمر الوحيد في الإضافة
 ├── hooks/hooks.json                ← ربط حاجز الأمان

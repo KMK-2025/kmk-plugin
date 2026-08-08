@@ -1,5 +1,5 @@
 {
-  "name": "arabic-webapp",
+  "name": "kmk-plugin",
   "version": "1.0.0",
   "description": "ينشئ ويدير مشاريع ويب عربية RTL (React + Laravel) بأوامر عربية مبسّطة لمستخدم غير مبرمج",
   "author": {
