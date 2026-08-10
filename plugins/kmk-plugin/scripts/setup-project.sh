@@ -54,6 +54,38 @@ npm install bootstrap bootstrap-icons react-router-dom axios \
   zustand i18next react-i18next react-hot-toast >/dev/null 2>&1
 npm install -D vite-plugin-pwa vitest jsdom prettier \
   @testing-library/react @testing-library/jest-dom @testing-library/user-event >/dev/null 2>&1
+# ESLint صراحةً — قوالب Vite الحديثة قد لا تشمله
+npm install -D eslint @eslint/js typescript-eslint \
+  eslint-plugin-react-hooks eslint-plugin-react-refresh globals >/dev/null 2>&1
+if [ ! -f eslint.config.js ]; then
+  cat > eslint.config.js <<'JS'
+import js from '@eslint/js';
+import globals from 'globals';
+import reactHooks from 'eslint-plugin-react-hooks';
+import reactRefresh from 'eslint-plugin-react-refresh';
+import tseslint from 'typescript-eslint';
+
+export default tseslint.config(
+  { ignores: ['dist'] },
+  {
+    extends: [js.configs.recommended, ...tseslint.configs.recommended],
+    files: ['**/*.{ts,tsx}'],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.browser,
+    },
+    plugins: {
+      'react-hooks': reactHooks,
+      'react-refresh': reactRefresh,
+    },
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+    },
+  }
+);
+JS
+fi
 
 # بنية features + shared (نمط bulletproof-react)
 mkdir -p src/{app,features,shared/{api,components/{ui,table,form,feedback},hooks,store,types,utils,constants},locales,styles,assets/fonts,test}
@@ -111,6 +143,8 @@ composer require --dev laravel/pint pestphp/pest larastan/larastan --quiet --wit
 php artisan install:api --no-interaction >/dev/null 2>&1
 php artisan vendor:publish --provider="Spatie\Permission\PermissionServiceProvider" >/dev/null 2>&1
 php artisan vendor:publish --provider="Spatie\Activitylog\ActivitylogServiceProvider" --tag="activitylog-migrations" >/dev/null 2>&1
+# تنسيق أولي — الملفات المنشورة من المكتبات قد تخالف نمط Pint
+./vendor/bin/pint >/dev/null 2>&1 || true
 
 # بنية الموديولز + نسخ الـ API
 mkdir -p app/Modules routes/api/v1

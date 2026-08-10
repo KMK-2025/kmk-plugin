@@ -1,0 +1,98 @@
+name: smoke-test
+
+# اختبار دخان: يشغّل سكربت الإنشاء كاملًا على مشروع وهمي مع كل تغيير،
+# فتنكشف أخطاء القالب والسكربت قبل النشر — لا عند المتدرب.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scaffold:
+    name: إنشاء مشروع كامل والتحقق من البنية والبوابات
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      npm_config_yes: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, xml, curl, sqlite3, pdo_sqlite
+          tools: composer:v2
+
+      - name: تهيئة هوية Git (يحتاجها الالتزام الأول في السكربت)
+        run: |
+          git config --global user.name "smoke-test"
+          git config --global user.email "smoke-test@ci.local"
+
+      - name: تشغيل سكربت الإنشاء كاملًا
+        run: |
+          mkdir -p "$RUNNER_TEMP/work"
+          cd "$RUNNER_TEMP/work"
+          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/setup-project.sh" smoke-proj
+
+      - name: التحقق من البنية (موديولز + نسخ + ملفات الحماية)
+        run: |
+          cd "$RUNNER_TEMP/work/smoke-proj"
+          fail=0
+          for p in \
+            .claude/hooks/guard.sh \
+            .claude/hooks/autosave.sh \
+            .claude/settings.json \
+            CLAUDE.md \
+            docs/api-contract.md \
+            backend/phpstan.neon \
+            backend/routes/api.php \
+            frontend/vitest.config.ts \
+            frontend/.prettierrc ; do
+            [ -f "$p" ] || { echo "::error::ملف ناقص: $p"; fail=1; }
+          done
+          for d in \
+            backend/app/Modules \
+            backend/routes/api/v1 \
+            frontend/src/features \
+            frontend/src/shared/api \
+            frontend/src/shared/components/feedback ; do
+            [ -d "$d" ] || { echo "::error::مجلد ناقص: $d"; fail=1; }
+          done
+          grep -q '"check"' frontend/package.json || { echo "::error::سكربت check ناقص من package.json"; fail=1; }
+          [ "$fail" -eq 0 ] && echo "✔ البنية سليمة"
+          exit "$fail"
+
+      - name: اختبار حاجز الأمان (يسمح بالآمن ويمنع الخطر)
+        run: |
+          cd "$RUNNER_TEMP/work/smoke-proj"
+          echo '{"tool_input":{"command":"git status"}}' | bash .claude/hooks/guard.sh \
+            || { echo "::error::الحاجز منع أمرًا آمنًا"; exit 1; }
+          if echo '{"tool_input":{"command":"git push --force origin main"}}' | bash .claude/hooks/guard.sh; then
+            echo "::error::الحاجز لم يمنع الدفع القسري"; exit 1
+          fi
+          if echo '{"tool_input":{"command":"php artisan migrate:fresh"}}' | bash .claude/hooks/guard.sh; then
+            echo "::error::الحاجز لم يمنع الأمر المدمّر لقاعدة البيانات"; exit 1
+          fi
+          echo "✔ الحاجز يعمل"
+
+      - name: بوابة الواجهة (npm run check)
+        run: |
+          cd "$RUNNER_TEMP/work/smoke-proj/frontend"
+          npm run check
+
+      - name: بوابة الخدمات (pint + larastan + الاختبارات)
+        run: |
+          cd "$RUNNER_TEMP/work/smoke-proj/backend"
+          ./vendor/bin/pint --test
+          ./vendor/bin/phpstan analyse --memory-limit=1G
+          php artisan test
