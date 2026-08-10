@@ -143,6 +143,8 @@ composer require --dev laravel/pint pestphp/pest larastan/larastan --quiet --wit
 php artisan install:api --no-interaction >/dev/null 2>&1
 php artisan vendor:publish --provider="Spatie\Permission\PermissionServiceProvider" >/dev/null 2>&1
 php artisan vendor:publish --provider="Spatie\Activitylog\ActivitylogServiceProvider" --tag="activitylog-migrations" >/dev/null 2>&1
+# تنسيق أولي — الملفات المنشورة من المكتبات قد تخالف نمط Pint
+./vendor/bin/pint >/dev/null 2>&1 || true
 
 # بنية الموديولز + نسخ الـ API
 mkdir -p app/Modules routes/api/v1
