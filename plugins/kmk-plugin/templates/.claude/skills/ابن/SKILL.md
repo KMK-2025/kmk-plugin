@@ -1,15 +1,15 @@
 ---
 name: ابن
-description: يبني قسمًا كاملًا في النظام (قاعدة البيانات + الخدمات + الشاشات) لكيان مثل الفواتير أو الموظفين. استخدمه عند طلب إضافة قسم جديد.
+description: يبني موديولًا كاملًا في النظام (قاعدة البيانات + الخدمات + الشاشات) لكيان مثل الفواتير أو الموظفين. استخدمه عند طلب إضافة قسم جديد.
 argument-hint: [اسم القسم بالعربية]
 disable-model-invocation: true
 ---
 
-# بناء قسم كامل: $ARGUMENTS
+# بناء موديول كامل: $ARGUMENTS
 
 ## اقرأ أولًا
-`docs/spec.md` و `docs/api-contract.md` و `docs/design-system.md` و `CLAUDE.md`.
-افحص `frontend/src/components/` و `frontend/src/pages/` لتعرف ما هو موجود ومتاح لإعادة الاستخدام.
+`docs/spec.md` و `docs/api-contract.md` و `docs/design-system.md` و `CLAUDE.md` (خصوصًا البنية المعمارية والنسخ والأمان والتسمية).
+افحص `backend/app/Modules/` و `frontend/src/features/` و `frontend/src/shared/` لتعرف ما هو موجود ومتاح لإعادة الاستخدام.
 
 ---
 
@@ -30,22 +30,25 @@ disable-model-invocation: true
 
 إن كان القسم غير موجود في `docs/spec.md`، اسأله عن التفاصيل الناقصة سؤالًا سؤالًا، ثم أضِف القسم إلى `spec.md`.
 
+حدّد اسم الموديول الإنجليزي (StudlyCase جمع للخدمات، kebab-case جمع للواجهة) — نفس الاسم في الجهتين.
+
 ---
 
 ## المرحلة 2 — البيانات والخدمات (Laravel + MySQL)
 
 فوّض هذه المرحلة إلى الوكيل `laravel-api-builder`.
 
-المطلوب منه:
+المطلوب منه — كله داخل `app/Modules/<Module>/` وتحت نسخة `V1`:
 1. Migration بترميز `utf8mb4_unicode_ci` وفهارس على أعمدة البحث والفرز
-2. Model + العلاقات + `$fillable`
-3. FormRequest للإنشاء والتعديل برسائل خطأ **عربية**
-4. Controller: `index` (بحث/فرز/ترقيم/فلاتر) · `show` · `store` · `update` · `destroy`
-5. API Resource بالشكل الموحّد المذكور في `CLAUDE.md`
-6. Routes محمية بـ `permission:` المناسبة
+2. `Models/<Entity>.php` + العلاقات + `$fillable` + `$hidden` للحساس + `LogsActivity`
+3. `Http/Requests/V1/` للإنشاء والتعديل برسائل خطأ **عربية**
+4. `Services/<Entity>Service.php` يحمل المنطق، و Controller نحيف في `Http/Controllers/V1/`: `index` (بحث/فرز/ترقيم/فلاتر) · `show` · `store` · `update` · `destroy`
+5. `Http/Resources/V1/` بالشكل الموحّد المذكور في `CLAUDE.md`
+6. `routes/api/v1/<module>.php` محمي بـ `auth:sanctum` + `permission:` + throttle
 7. Seeder ببيانات عربية واقعية (10 سجلات على الأقل ليظهر الترقيم)
-8. اختبار Pest لكل نقطة
-9. تحديث `docs/api-contract.md`
+8. اختبارات Pest في `tests/Feature/<Module>/V1/`: نجاح · فشل تحقق · 401 · 403 لكل نقطة
+9. تشغيل البوابة: `./vendor/bin/pint && ./vendor/bin/phpstan analyse && php artisan test`
+10. تحديث `docs/api-contract.md` تحت النسخة الصحيحة
 
 ---
 
@@ -53,17 +56,18 @@ disable-model-invocation: true
 
 فوّض هذه المرحلة إلى الوكيل `frontend-builder`.
 
-المطلوب منه:
-1. `src/types/<entity>.ts` مطابق حرفيًا لاستجابة الـ API
-2. `src/services/<entity>.service.ts` — كل الاستدعاءات هنا حصرًا
-3. `src/pages/<entity>/`:
-   - **صفحة القائمة** بمكوّن `DataTable` الموجود: بحث، فرز، ترقيم، فلاتر، اختيار عدد السجلات، والحالات الخمس
+المطلوب منه — كله داخل `src/features/<feature>/`:
+1. `types/<entity>.ts` مطابق حرفيًا لاستجابة الـ API في العقد
+2. `services/<feature>.service.ts` عبر عميل `shared/api` — كل الاستدعاءات هنا حصرًا، بلا `/v1/` يدوية
+3. `pages/`:
+   - **صفحة القائمة** بمكوّن `DataTable` من `shared/`: بحث، فرز، ترقيم، فلاتر، اختيار عدد السجلات، والحالات الخمس
    - **صفحة النموذج** بـ React Hook Form + Zod، رسائل عربية، ومنع الضغط المتكرر على الحفظ
    - **صفحة التفاصيل** إن كان القسم يستحقها
-4. تسجيل المسارات مع Lazy loading
+4. `index.ts` يصدّر الواجهة العامة للموديول، وتسجيل المسارات في `src/app/` مع Lazy loading
 5. عنصر القائمة الجانبية مشروطًا بالصلاحية
-6. كل النصوص في `src/locales/ar.json` و `en.json` بنفس المفاتيح
+6. كل النصوص في `src/locales/ar.json` و `en.json` بمفاتيح `<feature>.<screen>.<key>`
 7. `ConfirmDialog` قبل الحذف، و Toast بعد كل عملية
+8. Vitest لكل مكوّن فيه منطق، ثم تشغيل البوابة: `npm run check`
 
 ---
 
@@ -71,8 +75,8 @@ disable-model-invocation: true
 
 قبل أن تعلن الانتهاء، شغّل بنفسك:
 ```bash
-cd frontend && npx tsc --noEmit
-cd backend && ./vendor/bin/pint && php artisan test
+cd frontend && npm run check
+cd backend && ./vendor/bin/pint && ./vendor/bin/phpstan analyse && php artisan test
 ```
 إن فشل أي منها، أصلحه ثم أعد التشغيل. لا تسلّم عملًا لا يمر بهذه الفحوصات.
 
@@ -88,6 +92,7 @@ cd backend && ./vendor/bin/pint && php artisan test
 > · شاشة تعرض كل الفواتير مع بحث وفرز وتقسيم صفحات
 > · شاشة لإضافة فاتورة وتعديلها
 > · حماية: المحاسب ما يقدر يحذف
+> · وكل عملية تنحفظ في سجل: مين سواها ومتى
 >
 > اكتب `/جرب` عشان تشوفه بعينك."
 
