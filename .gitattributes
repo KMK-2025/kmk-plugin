@@ -1,0 +1,2 @@
+# سكربتات bash يجب أن تبقى LF دائمًا — CRLF يكسرها على Git Bash في Windows
+*.sh text eol=lf
