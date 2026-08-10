@@ -50,8 +50,8 @@ disable-model-invocation: true
 1. اكتب `docs/design-system.md` بالقرارات المعتمدة.
 2. اكتب `frontend/src/styles/theme.css` بمتغيرات CSS مطابقة.
 3. تأكد أن `bootstrap.rtl.min.css` مستورد قبل `theme.css`.
-4. أنشئ أو حدّث المكونات المشتركة في `src/components/ui/` لتستخدم المتغيرات: `Button`، `Input`، `Select`، `Card`، `Badge`، `Modal`، `ConfirmDialog`.
-5. أنشئ مكونات الحالات في `src/components/feedback/`: `Loading`، `Empty`، `ErrorState`، `Unauthorized`.
+4. أنشئ أو حدّث المكونات المشتركة في `src/shared/components/ui/` لتستخدم المتغيرات: `Button`، `Input`، `Select`، `Card`، `Badge`، `Modal`، `ConfirmDialog`.
+5. أنشئ مكونات الحالات في `src/shared/components/feedback/`: `Loading`، `Empty`، `ErrorState`، `Unauthorized`.
 
 ## القاعدة الحاكمة
 التصميم يُترجم إلى **متغيّرات ومكونات مشتركة** لا إلى صفحات. أي لون أو مسافة تُكتب مباشرة داخل صفحة = خطأ يجب تفاديه، لأن تغيير هوية النظام لاحقًا يجب أن يكون بتعديل ملف واحد.
