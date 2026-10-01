@@ -5,4 +5,4 @@
   قائمة-الفواتير.png
   نموذج-اضافة-عميل.png
 
-ثم اكتب في Claude Code: /صمم
+ثم اكتب في Claude Code: /apply-design

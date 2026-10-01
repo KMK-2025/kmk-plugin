@@ -4,7 +4,7 @@
 
 **الحزمة التقنية:** React · TypeScript · Vite · Bootstrap 5 RTL · TanStack Query · React Hook Form · Zod · Zustand · i18next · Laravel 11 · MySQL/MariaDB · Sanctum · spatie/permission
 
-**الأمر:** `/ابدأ <اسم-المشروع>`
+**الأمر:** `/start <اسم-المشروع>`
 
 **المتطلبات على الجهاز:** Node.js · Git · PHP 8.2+ · Composer · MySQL أو XAMPP
 الأمر يفحصها ويرشدك لما ينقص. على Windows شغّله من Git Bash.

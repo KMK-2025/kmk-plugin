@@ -213,12 +213,12 @@ cat <<EOF
   1. عدّل backend/.env  → بيانات قاعدة البيانات + FRONTEND_URL
   2. cd backend && php artisan migrate
   3. أنشئ مستودعًا على GitHub واربطه
-  4. اختبر الأوامر العربية:  cd $NAME && claude
+  4. اختبر الأوامر:  cd $NAME && claude
      ثم اكتب  /  وتأكد أن الأوامر تظهر
 
 ثم يبدأ المتدرب من:
      cd $NAME
      claude
-     /فكرة
+     /idea
 
 EOF
