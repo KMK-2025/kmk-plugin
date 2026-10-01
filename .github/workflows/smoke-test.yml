@@ -69,6 +69,20 @@ jobs:
             [ -d "$d" ] || { echo "::error::مجلد ناقص: $d"; fail=1; }
           done
           grep -q '"check"' frontend/package.json || { echo "::error::سكربت check ناقص من package.json"; fail=1; }
+          # كل أمر: مجلده موجود واسمه في الملف يطابق اسم المجلد
+          for s in idea apply-design build-web test share-link deploy fix go-back; do
+            f=".claude/skills/$s/SKILL.md"
+            [ -f "$f" ] || { echo "::error::أمر ناقص: /$s"; fail=1; continue; }
+            grep -q "^name: $s" "$f" || { echo "::error::اسم الأمر لا يطابق مجلده: /$s"; fail=1; }
+          done
+          # لا مرجع لأمر غير موجود داخل ملفات المشروع
+          known='idea|apply-design|build-web|test|share-link|deploy|fix|go-back|start'
+          stray=$(grep -rhoE '`/[a-z][a-z-]+[` ]' .claude CLAUDE.md docs | sed -E 's/[` ]$//' | sort -u | grep -vE "^\`/($known)$" || true)
+          [ -z "$stray" ] || { echo "::error::مرجع لأمر غير معروف: $stray"; fail=1; }
+          # أسماء محجوزة لأوامر Claude Code المدمجة — سكيل بهذا الاسم يُحجب أو يحجب أمرًا أصليًا
+          for r in design share undo mobile run verify review init plan debug doctor config status help clear theme; do
+            if [ -d ".claude/skills/$r" ]; then echo "::error::اسم أمر محجوز في Claude Code: /$r"; fail=1; fi
+          done
           [ "$fail" -eq 0 ] && echo "✔ البنية سليمة"
           exit "$fail"
 
