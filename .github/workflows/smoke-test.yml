@@ -56,6 +56,8 @@ jobs:
             docs/api-contract.md \
             backend/phpstan.neon \
             backend/routes/api.php \
+            backend/tests/Support/ApiShape.php \
+            .claude/scripts/bump-api-version.sh \
             frontend/vitest.config.ts \
             frontend/.prettierrc ; do
             [ -f "$p" ] || { echo "::error::ملف ناقص: $p"; fail=1; }
@@ -76,7 +78,7 @@ jobs:
             grep -q "^name: $s" "$f" || { echo "::error::اسم الأمر لا يطابق مجلده: /$s"; fail=1; }
           done
           # لا مرجع لأمر غير موجود داخل ملفات المشروع
-          known='idea|apply-design|build-web|test|share-link|deploy|fix|go-back|start'
+          known='idea|apply-design|build-web|test|share-link|deploy|fix|go-back|start|add-mobile'
           stray=$(grep -rhoE '`/[a-z][a-z-]+[` ]' .claude CLAUDE.md docs | sed -E 's/[` ]$//' | sort -u | grep -vE "^\`/($known)$" || true)
           [ -z "$stray" ] || { echo "::error::مرجع لأمر غير معروف: $stray"; fail=1; }
           # أسماء محجوزة لأوامر Claude Code المدمجة — سكيل بهذا الاسم يُحجب أو يحجب أمرًا أصليًا
@@ -110,3 +112,211 @@ jobs:
           ./vendor/bin/pint --test
           ./vendor/bin/phpstan analyse --memory-limit=1G
           php artisan test
+
+  mobile:
+    name: إضافة تطبيق الجوال والتحقق من بوابته وحارس النسخ
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      npm_config_yes: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, xml, curl, sqlite3, pdo_sqlite
+          tools: composer:v2
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: تهيئة هوية Git
+        run: |
+          git config --global user.name "smoke-test"
+          git config --global user.email "smoke-test@ci.local"
+
+      - name: إنشاء المشروع الأساسي
+        run: |
+          mkdir -p "$RUNNER_TEMP/work"
+          cd "$RUNNER_TEMP/work"
+          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/setup-project.sh" smoke-proj
+
+      - name: تجهيز بيئة الجوال بسكربت الإضافة نفسه
+        run: |
+          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/setup-mobile.sh"
+          test -f "$HOME/.kmk-mobile-env"
+          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/doctor-mobile.sh"
+
+      - name: إضافة تطبيق الجوال
+        run: |
+          source "$HOME/.kmk-mobile-env"
+          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/add-mobile.sh" "$RUNNER_TEMP/work/smoke-proj" clinic com.kmk
+
+      - name: التحقق من بنية الجوال
+        run: |
+          cd "$RUNNER_TEMP/work/smoke-proj"
+          fail=0
+          for p in \
+            mobile/pubspec.yaml \
+            mobile/analysis_options.yaml \
+            mobile/lib/app/router.dart \
+            mobile/lib/shared/api/api_config.dart \
+            mobile/lib/shared/l10n/app_ar.arb \
+            mobile/lib/shared/widgets/feedback/error_state.dart \
+            backend/app/Modules/Mobile/Services/AppVersionService.php \
+            backend/config/mobile.php \
+            backend/routes/api/v1/mobile.php \
+            .claude/agents/flutter-builder.md \
+            .claude/skills/build-mobile/SKILL.md \
+            .github/workflows/mobile-release.yml ; do
+            [ -f "$p" ] || { echo "::error::ملف ناقص: $p"; fail=1; }
+          done
+          grep -q '^name: build-mobile' .claude/skills/build-mobile/SKILL.md || { echo "::error::اسم أمر الجوال لا يطابق مجلده"; fail=1; }
+          grep -q 'kmk:mobile' CLAUDE.md || { echo "::error::قسم الجوال ناقص من الدستور"; fail=1; }
+          grep -q 'kmk:mobile' docs/api-contract.md || { echo "::error::قسم الجوال ناقص من العقد"; fail=1; }
+          grep -q '^  generate: true' mobile/pubspec.yaml || { echo "::error::توليد الترجمة غير مفعّل"; fail=1; }
+          grep -q 'android.permission.INTERNET' mobile/android/app/src/main/AndroidManifest.xml || { echo "::error::صلاحية الإنترنت ناقصة"; fail=1; }
+          [ ! -e mobile/test/widget_test.dart ] || { echo "::error::اختبار القالب الافتراضي لم يُحذف"; fail=1; }
+          known='idea|apply-design|build-web|build-mobile|test|share-link|deploy|fix|go-back|start|add-mobile'
+          stray=$(grep -rhoE '`/[a-z][a-z-]+[` ]' .claude CLAUDE.md docs | sed -E 's/[` ]$//' | sort -u | grep -vE "^\`/($known)$" || true)
+          [ -z "$stray" ] || { echo "::error::مرجع لأمر غير معروف: $stray"; fail=1; }
+          [ "$fail" -eq 0 ] && echo "✔ بنية الجوال سليمة"
+          exit "$fail"
+
+      - name: بوابة الجوال (analyze + format + test)
+        run: |
+          source "$HOME/.kmk-mobile-env"
+          cd "$RUNNER_TEMP/work/smoke-proj/mobile"
+          flutter analyze
+          dart format --set-exit-if-changed lib test
+          flutter test
+
+      - name: بوابة الخدمات مع موديول الجوال
+        run: |
+          cd "$RUNNER_TEMP/work/smoke-proj/backend"
+          ./vendor/bin/pint --test
+          ./vendor/bin/phpstan analyse --memory-limit=1G
+          php artisan test
+
+      - name: حارس التوافق يكشف حذف حقل ويقبل إضافة حقل
+        run: |
+          cd "$RUNNER_TEMP/work/smoke-proj/backend"
+          snapshot=tests/api-snapshots/v1/mobile.app-version.json
+          test -f "$snapshot" || { echo "::error::لم يُحفظ شكل الرد"; exit 1; }
+          cp "$snapshot" /tmp/snapshot.bak
+
+          # حقل كان موجودًا ولم يعد الرد يحمله = كسر
+          php -r '$f=$argv[1]; $s=json_decode(file_get_contents($f), true); $s["data"]["removed_field"]="string"; file_put_contents($f, json_encode($s));' "$snapshot"
+          if php artisan test --filter=AppVersionTest > /tmp/guard.txt 2>&1; then
+            echo "::error::الحارس لم يكشف حذف الحقل"; exit 1
+          fi
+          grep -q "removed_field" /tmp/guard.txt || { cat /tmp/guard.txt; echo "::error::رسالة الحارس لا تسمّي الحقل المحذوف"; exit 1; }
+
+          # حقل جديد في الرد = مسموح ويُسجَّل
+          php -r '$f=$argv[1]; $s=json_decode(file_get_contents("/tmp/snapshot.bak"), true); unset($s["data"]["latest"]); file_put_contents($f, json_encode($s));' "$snapshot"
+          php artisan test --filter=AppVersionTest
+          grep -q '"latest"' "$snapshot" || { echo "::error::الحقل الجديد لم يُسجَّل في الشكل"; exit 1; }
+          echo "✔ الحارس يعمل"
+
+      - name: الرفع الآلي لنسخة الـ API
+        run: |
+          source "$HOME/.kmk-mobile-env"
+          cd "$RUNNER_TEMP/work/smoke-proj"
+          CLAUDE_PROJECT_DIR="$PWD" bash .claude/scripts/bump-api-version.sh "اختبار دخان: تغيير شكل رد"
+          test -f backend/routes/api/v2/mobile.php || { echo "::error::لم تُنشأ مسارات v2"; exit 1; }
+          grep -q "apiVersion = 'v2'" mobile/lib/shared/api/api_config.dart || { echo "::error::التطبيق لم يُوجَّه إلى v2"; exit 1; }
+          grep -q '^| v2 | 1.0.0 |' docs/api-contract.md || { echo "::error::النسخة لم تُسجَّل في العقد"; exit 1; }
+          grep -q 'النسخة الأحدث: \*\*v2\*\*' docs/api-contract.md || { echo "::error::لم يُحدَّث رقم النسخة الأحدث"; exit 1; }
+          cd backend
+          php artisan route:cache
+          php artisan route:clear
+          php artisan route:list --path=api/v2 --json | grep -qE 'Controllers.{1,2}V1.{1,2}AppVersionController' || { echo "::error::نقاط v2 لا تشير إلى Controllers النسخة السابقة"; exit 1; }
+          php artisan test
+          cd ../mobile && flutter analyze
+          echo "✔ الرفع الآلي يعمل والنسختان تعملان معًا"
+
+      - name: بناء التطبيق لـ Android
+        run: |
+          source "$HOME/.kmk-mobile-env"
+          cd "$RUNNER_TEMP/work/smoke-proj/mobile"
+          flutter build apk --debug
+          test -f build/app/outputs/flutter-apk/app-debug.apk
+
+  mobile-windows:
+    name: سكربتات الجوال على Windows (Git Bash) كما يشغّلها المتدرب
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: تهيئة هوية Git
+        run: |
+          git config --global user.name "smoke-test"
+          git config --global user.email "smoke-test@ci.local"
+
+      # جهاز المتدرب ليس عليه Android SDK: نبدأ من مجلد فارغ ليُختبر التنزيل وقبول التراخيص
+      - name: تجهيز بيئة الجوال من جهاز بلا Android SDK
+        run: |
+          export ANDROID_HOME="$RUNNER_TEMP/fresh-android-sdk"
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
+          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/setup-mobile.sh"
+          test -f "$HOME/.kmk-mobile-env"
+          source "$HOME/.kmk-mobile-env"
+          test -e "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager.bat" || { echo "::error::أدوات Android لم تُنزَّل"; exit 1; }
+          test -e "$ANDROID_HOME/platform-tools/adb.exe" || { echo "::error::adb لم يُثبَّت — التراخيص أو التنزيل فشل"; exit 1; }
+          ls "$ANDROID_HOME/licenses" | grep -q . || { echo "::error::التراخيص لم تُقبل"; exit 1; }
+          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/doctor-mobile.sh"
+
+      - name: مشروع هيكلي ثم إضافة تطبيق الجوال
+        run: |
+          source "$HOME/.kmk-mobile-env"
+          mkdir -p "$RUNNER_TEMP/work/win-proj/backend" "$RUNNER_TEMP/work/win-proj/docs"
+          cd "$RUNNER_TEMP/work/win-proj"
+          cp "$GITHUB_WORKSPACE/plugins/kmk-plugin/templates/CLAUDE.md" .
+          cp "$GITHUB_WORKSPACE/plugins/kmk-plugin/templates/docs/api-contract.md" docs/
+          git init -q && git add -A && git commit -q -m "هيكل"
+          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/add-mobile.sh" . clinic com.kmk
+
+      - name: التحقق من البنية على Windows
+        run: |
+          cd "$RUNNER_TEMP/work/win-proj"
+          fail=0
+          grep -q '^  generate: true' mobile/pubspec.yaml || { echo "::error::توليد الترجمة غير مفعّل"; fail=1; }
+          grep -q 'android.permission.INTERNET' mobile/android/app/src/main/AndroidManifest.xml || { echo "::error::صلاحية الإنترنت ناقصة"; fail=1; }
+          grep -q 'package:clinic/' mobile/test/version_test.dart || { echo "::error::اسم الحزمة لم يُستبدل في الاختبارات"; fail=1; }
+          [ -f backend/app/Modules/Mobile/Services/AppVersionService.php ] || { echo "::error::موديول الخدمات لم يُنسخ"; fail=1; }
+          grep -q 'kmk:mobile' CLAUDE.md || { echo "::error::قسم الجوال ناقص من الدستور"; fail=1; }
+          exit "$fail"
+
+      - name: بوابة الجوال
+        run: |
+          source "$HOME/.kmk-mobile-env"
+          cd "$RUNNER_TEMP/work/win-proj/mobile"
+          flutter analyze
+          dart format --set-exit-if-changed lib test
+          flutter test
+
+      - name: الرفع الآلي لنسخة الـ API
+        run: |
+          cd "$RUNNER_TEMP/work/win-proj"
+          mkdir -p .claude/scripts backend/routes/api/v1
+          cp "$GITHUB_WORKSPACE/plugins/kmk-plugin/templates/.claude/scripts/bump-api-version.sh" .claude/scripts/
+          CLAUDE_PROJECT_DIR="$PWD" bash .claude/scripts/bump-api-version.sh "اختبار دخان على Windows"
+          test -f backend/routes/api/v2/mobile.php || { echo "::error::لم تُنشأ مسارات v2"; exit 1; }
+          grep -q "apiVersion = 'v2'" mobile/lib/shared/api/api_config.dart || { echo "::error::التطبيق لم يُوجَّه إلى v2"; exit 1; }
+          grep -q '^| v2 | 1.0.0 |' docs/api-contract.md || { echo "::error::النسخة لم تُسجَّل في العقد"; exit 1; }
