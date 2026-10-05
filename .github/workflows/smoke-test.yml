@@ -248,3 +248,68 @@ jobs:
           cd "$RUNNER_TEMP/work/smoke-proj/mobile"
           flutter build apk --debug
           test -f build/app/outputs/flutter-apk/app-debug.apk
+
+  mobile-windows:
+    name: سكربتات الجوال على Windows (Git Bash) كما يشغّلها المتدرب
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: تهيئة هوية Git
+        run: |
+          git config --global user.name "smoke-test"
+          git config --global user.email "smoke-test@ci.local"
+
+      - name: تجهيز بيئة الجوال
+        run: |
+          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/setup-mobile.sh"
+          test -f "$HOME/.kmk-mobile-env"
+          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/doctor-mobile.sh"
+
+      - name: مشروع هيكلي ثم إضافة تطبيق الجوال
+        run: |
+          source "$HOME/.kmk-mobile-env"
+          mkdir -p "$RUNNER_TEMP/work/win-proj/backend" "$RUNNER_TEMP/work/win-proj/docs"
+          cd "$RUNNER_TEMP/work/win-proj"
+          cp "$GITHUB_WORKSPACE/plugins/kmk-plugin/templates/CLAUDE.md" .
+          cp "$GITHUB_WORKSPACE/plugins/kmk-plugin/templates/docs/api-contract.md" docs/
+          git init -q && git add -A && git commit -q -m "هيكل"
+          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/add-mobile.sh" . clinic com.kmk
+
+      - name: التحقق من البنية على Windows
+        run: |
+          cd "$RUNNER_TEMP/work/win-proj"
+          fail=0
+          grep -q '^  generate: true' mobile/pubspec.yaml || { echo "::error::توليد الترجمة غير مفعّل"; fail=1; }
+          grep -q 'android.permission.INTERNET' mobile/android/app/src/main/AndroidManifest.xml || { echo "::error::صلاحية الإنترنت ناقصة"; fail=1; }
+          grep -q 'package:clinic/' mobile/test/version_test.dart || { echo "::error::اسم الحزمة لم يُستبدل في الاختبارات"; fail=1; }
+          [ -f backend/app/Modules/Mobile/Services/AppVersionService.php ] || { echo "::error::موديول الخدمات لم يُنسخ"; fail=1; }
+          grep -q 'kmk:mobile' CLAUDE.md || { echo "::error::قسم الجوال ناقص من الدستور"; fail=1; }
+          exit "$fail"
+
+      - name: بوابة الجوال
+        run: |
+          source "$HOME/.kmk-mobile-env"
+          cd "$RUNNER_TEMP/work/win-proj/mobile"
+          flutter analyze
+          dart format --set-exit-if-changed lib test
+          flutter test
+
+      - name: الرفع الآلي لنسخة الـ API
+        run: |
+          cd "$RUNNER_TEMP/work/win-proj"
+          mkdir -p .claude/scripts backend/routes/api/v1
+          cp "$GITHUB_WORKSPACE/plugins/kmk-plugin/templates/.claude/scripts/bump-api-version.sh" .claude/scripts/
+          CLAUDE_PROJECT_DIR="$PWD" bash .claude/scripts/bump-api-version.sh "اختبار دخان على Windows"
+          test -f backend/routes/api/v2/mobile.php || { echo "::error::لم تُنشأ مسارات v2"; exit 1; }
+          grep -q "apiVersion = 'v2'" mobile/lib/shared/api/api_config.dart || { echo "::error::التطبيق لم يُوجَّه إلى v2"; exit 1; }
+          grep -q '^| v2 | 1.0.0 |' docs/api-contract.md || { echo "::error::النسخة لم تُسجَّل في العقد"; exit 1; }
