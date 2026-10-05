@@ -269,10 +269,17 @@ jobs:
           git config --global user.name "smoke-test"
           git config --global user.email "smoke-test@ci.local"
 
-      - name: تجهيز بيئة الجوال
+      # جهاز المتدرب ليس عليه Android SDK: نبدأ من مجلد فارغ ليُختبر التنزيل وقبول التراخيص
+      - name: تجهيز بيئة الجوال من جهاز بلا Android SDK
         run: |
+          export ANDROID_HOME="$RUNNER_TEMP/fresh-android-sdk"
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
           bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/setup-mobile.sh"
           test -f "$HOME/.kmk-mobile-env"
+          source "$HOME/.kmk-mobile-env"
+          test -e "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager.bat" || { echo "::error::أدوات Android لم تُنزَّل"; exit 1; }
+          test -e "$ANDROID_HOME/platform-tools/adb.exe" || { echo "::error::adb لم يُثبَّت — التراخيص أو التنزيل فشل"; exit 1; }
+          ls "$ANDROID_HOME/licenses" | grep -q . || { echo "::error::التراخيص لم تُقبل"; exit 1; }
           bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/doctor-mobile.sh"
 
       - name: مشروع هيكلي ثم إضافة تطبيق الجوال
