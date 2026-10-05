@@ -1,0 +1,13 @@
+{
+  "@@locale": "en",
+  "appTitle": "My System",
+  "homeWelcome": "Welcome",
+  "homeHint": "The app is ready. Add your first section to see its screens here.",
+  "stateLoading": "Loading…",
+  "stateEmpty": "No data yet",
+  "stateError": "Could not load the data",
+  "stateUnauthorized": "You do not have permission to view this page",
+  "actionRetry": "Try again",
+  "updateRequiredTitle": "Update the app",
+  "updateRequiredBody": "This version is no longer supported. Install the latest version to continue."
+}

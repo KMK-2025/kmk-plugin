@@ -1,0 +1,13 @@
+{
+  "@@locale": "ar",
+  "appTitle": "نظامي",
+  "homeWelcome": "أهلًا بك",
+  "homeHint": "التطبيق جاهز. أضف أول قسم لتظهر شاشاته هنا.",
+  "stateLoading": "جارٍ التحميل…",
+  "stateEmpty": "لا توجد بيانات بعد",
+  "stateError": "تعذّر تحميل البيانات",
+  "stateUnauthorized": "ليست لديك صلاحية لعرض هذه الصفحة",
+  "actionRetry": "إعادة المحاولة",
+  "updateRequiredTitle": "حدّث التطبيق",
+  "updateRequiredBody": "هذا الإصدار لم يعد مدعومًا. نزّل الإصدار الأحدث لتتابع عملك."
+}

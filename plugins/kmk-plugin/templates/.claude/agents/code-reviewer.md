@@ -14,7 +14,12 @@ model: sonnet
 
 **حدود الموديولز** — Controller أو Model خارج `app/Modules/` · صفحة أو service خارج `src/features/` · استيراد من داخل موديول آخر متجاوزًا `index.ts` · مكوّن منسوخ بين موديولين بدل نقله إلى `shared/` · منطق في Controller بدل Service
 
-**نسخ الـ API** — تعديل يكسر التوافق على نقطة `V1` قائمة (حذف/إعادة تسمية حقل، تغيير شكل رد) بدل إنشاء `V2` · حذف نسخة ما زالت الواجهة تستهلكها · `/v1/` مكتوبة يدويًا في service بدل ثابت `shared/api` · نقطة جديدة غير موثّقة في العقد أو مخالفة له
+**نسخ الـ API** — تعديل يكسر التوافق على نقطة قائمة (حذف/إعادة تسمية حقل، تغيير شكل رد) بدل رفع النسخة · ملف في `tests/api-snapshots/` عُدّل يدويًا أو حُذف (افحص `git diff` لهذا المجلد: الإضافات مقبولة، أي حذف سطر 🔴) · اختبار نجاح لنقطة بلا `ApiShape::assertCompatible` · حذف نسخة ما زال لها مستهلك · `/v1/` مكتوبة يدويًا في service بدل ثابت `shared/api` · نقطة جديدة غير موثّقة في العقد أو مخالفة له
+
+**الجوال** (إن وُجد `mobile/`) — نص عربي داخل ملف Dart بدل ARB · مفتاح في `app_ar.arb` ناقص في `app_en.arb` · لون أو مسافة ثابتة بدل `AppColors`/`AppSpacing` · `left`/`right` بدل `start`/`end` أو `EdgeInsets` بدل `EdgeInsetsDirectional` حيث يهم الاتجاه · Dio أو عنوان أو رقم نسخة داخل شاشة · `ApiConfig.apiVersion` معدَّل يدويًا · استيراد بين موديولين · شاشة بيانات ناقصة إحدى الحالات الخمس · توكن مخزَّن خارج `TokenStorage` · `// ignore:` لتجاوز الفحص · بوابة الجوال لا تمر:
+```bash
+. ~/.kmk-mobile-env 2>/dev/null; cd mobile && flutter analyze && dart format --set-exit-if-changed lib test && flutter test
+```
 
 **التسمية** — مخالفة لجدول التسمية في CLAUDE.md: جدول مفرد، مسار غير kebab-case، متغير مختصر غامض، boolean بلا `is/has/can`، مفتاح ترجمة خارج نمط `feature.screen.key`
 

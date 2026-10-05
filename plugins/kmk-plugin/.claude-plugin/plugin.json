@@ -1,9 +1,9 @@
 {
   "name": "kmk-plugin",
-  "version": "1.0.0",
-  "description": "ينشئ ويدير مشاريع ويب عربية RTL (React + Laravel) بأوامر عربية مبسّطة لمستخدم غير مبرمج",
+  "version": "1.1.0",
+  "description": "ينشئ ويدير أنظمة عربية RTL لمستخدم غير مبرمج: موقع (React) + خدمات (Laravel) + تطبيق جوال اختياري (Flutter)، بنسخ API محميّة آليًا",
   "author": {
     "name": "Khalid"
   },
-  "keywords": ["arabic", "rtl", "react", "laravel", "scaffold", "beginner"]
+  "keywords": ["arabic", "rtl", "react", "laravel", "flutter", "mobile", "scaffold", "beginner"]
 }

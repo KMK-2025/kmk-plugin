@@ -143,8 +143,20 @@ composer require --dev laravel/pint pestphp/pest larastan/larastan --quiet --wit
 php artisan install:api --no-interaction >/dev/null 2>&1
 php artisan vendor:publish --provider="Spatie\Permission\PermissionServiceProvider" >/dev/null 2>&1
 php artisan vendor:publish --provider="Spatie\Activitylog\ActivitylogServiceProvider" --tag="activitylog-migrations" >/dev/null 2>&1
-# تنسيق أولي — الملفات المنشورة من المكتبات قد تخالف نمط Pint
-./vendor/bin/pint >/dev/null 2>&1 || true
+
+# المستخدم يحمل توكنات Sanctum (install:api لا يضيفها للـ Model بنفسه)
+php -r '
+$f = "app/Models/User.php";
+$c = file_get_contents($f);
+if (! str_contains($c, "HasApiTokens")) {
+    $c = str_replace("use Illuminate\\Notifications\\Notifiable;", "use Illuminate\\Notifications\\Notifiable;\nuse Laravel\\Sanctum\\HasApiTokens;", $c);
+    $c = str_replace("use HasFactory, Notifiable;", "use HasApiTokens, HasFactory, Notifiable;", $c);
+    file_put_contents($f, $c);
+}
+'
+
+# حارس توافق الـ API — يكشف آليًا أي تغيير يكسر نسخة قائمة
+cp -r "$HERE/../stubs/backend-core/." .
 
 # بنية الموديولز + نسخ الـ API
 mkdir -p app/Modules routes/api/v1
@@ -156,13 +168,17 @@ cat > routes/api.php <<'PHP'
 use Illuminate\Support\Facades\Route;
 
 // تحميل مسارات كل نسخة تلقائيًا — كل موديول ملف مستقل في routes/api/v<N>/
-foreach (glob(__DIR__.'/api/v*', GLOB_ONLYDIR) as $versionDir) {
+foreach (glob(__DIR__.'/api/v*', GLOB_ONLYDIR) ?: [] as $versionDir) {
     $version = basename($versionDir);
-    Route::prefix($version)->middleware('throttle:60,1')->group(function () use ($versionDir) {
-        foreach (glob($versionDir.'/*.php') as $routeFile) {
-            require $routeFile;
-        }
-    });
+
+    Route::prefix($version)
+        ->name($version.'.')
+        ->middleware('throttle:60,1')
+        ->group(function () use ($versionDir) {
+            foreach (glob($versionDir.'/*.php') ?: [] as $routeFile) {
+                require $routeFile;
+            }
+        });
 }
 PHP
 touch routes/api/v1/.gitkeep
@@ -186,7 +202,11 @@ if [ -f config/cors.php ]; then
   sed -i.bak "s/'allowed_origins' => \['\*'\]/'allowed_origins' => [env('FRONTEND_URL', 'http:\/\/localhost:5173')]/" config/cors.php 2>/dev/null && rm -f config/cors.php.bak || true
 fi
 
+# تنسيق أولي — الملفات المنشورة من المكتبات قد تخالف نمط Pint
+./vendor/bin/pint >/dev/null 2>&1 || true
+
 cd ..
+chmod +x .claude/scripts/*.sh 2>/dev/null || true
 echo "  ✔ الخدمات جاهزة (Modules + v1 + activitylog + larastan)"
 
 # ---------- Git ----------

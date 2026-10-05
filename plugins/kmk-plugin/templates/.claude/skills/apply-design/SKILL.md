@@ -52,6 +52,7 @@ disable-model-invocation: true
 3. تأكد أن `bootstrap.rtl.min.css` مستورد قبل `theme.css`.
 4. أنشئ أو حدّث المكونات المشتركة في `src/shared/components/ui/` لتستخدم المتغيرات: `Button`، `Input`، `Select`، `Card`، `Badge`، `Modal`، `ConfirmDialog`.
 5. أنشئ مكونات الحالات في `src/shared/components/feedback/`: `Loading`، `Empty`، `ErrorState`، `Unauthorized`.
+6. **إن وُجد `mobile/`:** طابق `mobile/lib/shared/theme/app_theme.dart` مع نفس القرارات — الألوان في `AppColors` والمسافات في `AppSpacing` — ليظهر الموقع والتطبيق بهوية واحدة، ثم شغّل بوابة الجوال.
 
 ## القاعدة الحاكمة
 التصميم يُترجم إلى **متغيّرات ومكونات مشتركة** لا إلى صفحات. أي لون أو مسافة تُكتب مباشرة داخل صفحة = خطأ يجب تفاديه، لأن تغيير هوية النظام لاحقًا يجب أن يكون بتعديل ملف واحد.
