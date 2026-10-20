@@ -1,25 +1,41 @@
 name: smoke-test
 
-# اختبار دخان: يشغّل سكربت الإنشاء كاملًا على مشروع وهمي مع كل تغيير،
-# فتنكشف أخطاء القالب والسكربت قبل النشر — لا عند المتدرب.
+# اختبار دخان: ينشئ مشروعًا كاملًا ثم يثبت أن **تسجيل الدخول يعمل فعلًا**،
+# لا أن المجلدات موجودة. كل ما تعِد به الإضافة يُتحقَّق منه هنا قبل النشر.
 
 on:
   pull_request:
   push:
     branches: [main]
+  # أسبوعيًا: إصدار أعلى من Laravel أو npm قد يكسر الأساس بلا أي تغيير منّا،
+  # والأفضل أن نكتشف ذلك نحن لا متدرّب على جهازه.
+  schedule:
+    - cron: '0 3 * * 1'
   workflow_dispatch:
 
 concurrency:
   group: smoke-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   scaffold:
-    name: إنشاء مشروع كامل والتحقق من البنية والبوابات
+    name: إنشاء مشروع كامل والتحقق من أنه يعمل
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    env:
-      npm_config_yes: "true"
+    timeout-minutes: 30
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -proot"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -29,8 +45,8 @@ jobs:
 
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.3"
-          extensions: mbstring, xml, curl, sqlite3, pdo_sqlite
+          php-version: '8.3'
+          extensions: mbstring, xml, curl, zip, pdo_mysql
           tools: composer:v2
 
       - name: تهيئة هوية Git (يحتاجها الالتزام الأول في السكربت)
@@ -42,281 +58,196 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/work"
           cd "$RUNNER_TEMP/work"
-          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/setup-project.sh" smoke-proj
+          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/setup-project.sh" smokeproj root root
 
-      - name: التحقق من البنية (موديولز + نسخ + ملفات الحماية)
+      # ---------- الأساس التقني موجود فعلًا ----------
+      - name: التحقق من ملفات الأساس ومحتواها
         run: |
-          cd "$RUNNER_TEMP/work/smoke-proj"
+          cd "$RUNNER_TEMP/work/smokeproj"
           fail=0
-          for p in \
-            .claude/hooks/guard.sh \
-            .claude/hooks/autosave.sh \
-            .claude/settings.json \
-            CLAUDE.md \
-            docs/api-contract.md \
-            backend/phpstan.neon \
-            backend/routes/api.php \
-            backend/tests/Support/ApiShape.php \
-            .claude/scripts/bump-api-version.sh \
-            frontend/vitest.config.ts \
-            frontend/.prettierrc ; do
-            [ -f "$p" ] || { echo "::error::ملف ناقص: $p"; fail=1; }
+          for f in \
+            .claude/hooks/guard.sh .claude/settings.json CLAUDE.md \
+            docs/api-contract.md docs/design-system.md \
+            frontend/package-lock.json \
+            frontend/src/shared/api/client.ts \
+            frontend/src/shared/api/types.ts \
+            frontend/src/shared/forms/applyServerErrors.ts \
+            frontend/src/shared/store/auth.store.ts \
+            frontend/src/shared/hooks/useListParams.ts \
+            frontend/src/shared/hooks/useListQuery.ts \
+            frontend/src/shared/components/feedback/StateBoundary.tsx \
+            frontend/src/shared/components/feedback/Loading.tsx \
+            frontend/src/app/router.tsx frontend/src/app/routes.tsx \
+            frontend/src/app/RootLayout.tsx frontend/src/app/ProtectedRoute.tsx \
+            frontend/src/features/auth/services/auth.service.ts \
+            frontend/src/styles/theme.css frontend/src/i18n.ts \
+            backend/app/Support/ApiResponse.php \
+            backend/app/Modules/Auth/Http/Controllers/V1/AuthController.php \
+            backend/routes/api/v1/auth.php \
+            backend/database/seeders/RolePermissionSeeder.php \
+            backend/bootstrap/app.php backend/phpunit.xml backend/tests/Pest.php ; do
+            [ -f "$f" ] || { echo "::error::ملف ناقص: $f"; fail=1; }
           done
-          for d in \
-            backend/app/Modules \
-            backend/routes/api/v1 \
-            frontend/src/features \
-            frontend/src/shared/api \
-            frontend/src/shared/components/feedback ; do
-            [ -d "$d" ] || { echo "::error::مجلد ناقص: $d"; fail=1; }
-          done
-          grep -q '"check"' frontend/package.json || { echo "::error::سكربت check ناقص من package.json"; fail=1; }
-          # كل أمر: مجلده موجود واسمه في الملف يطابق اسم المجلد
-          for s in idea apply-design build-web test share-link deploy fix go-back; do
-            f=".claude/skills/$s/SKILL.md"
-            [ -f "$f" ] || { echo "::error::أمر ناقص: /$s"; fail=1; continue; }
-            grep -q "^name: $s" "$f" || { echo "::error::اسم الأمر لا يطابق مجلده: /$s"; fail=1; }
-          done
-          # لا مرجع لأمر غير موجود داخل ملفات المشروع
-          known='idea|apply-design|build-web|test|share-link|deploy|fix|go-back|start|add-mobile'
-          stray=$(grep -rhoE '`/[a-z][a-z-]+[` ]' .claude CLAUDE.md docs | sed -E 's/[` ]$//' | sort -u | grep -vE "^\`/($known)$" || true)
-          [ -z "$stray" ] || { echo "::error::مرجع لأمر غير معروف: $stray"; fail=1; }
-          # أسماء محجوزة لأوامر Claude Code المدمجة — سكيل بهذا الاسم يُحجب أو يحجب أمرًا أصليًا
-          for r in design share undo mobile run verify review init plan debug doctor config status help clear theme; do
-            if [ -d ".claude/skills/$r" ]; then echo "::error::اسم أمر محجوز في Claude Code: /$r"; fail=1; fi
-          done
-          [ "$fail" -eq 0 ] && echo "✔ البنية سليمة"
+
+          grep -q 'API_VERSION' frontend/src/shared/api/client.ts || { echo "::error::ثابت النسخة مفقود"; fail=1; }
+          grep -q "permission" backend/bootstrap/app.php || { echo "::error::اسم وسيط الصلاحيات غير مسجّل"; fail=1; }
+          grep -q 'bootstrap.rtl.min.css' frontend/src/main.tsx || { echo "::error::bootstrap RTL غير مستورد"; fail=1; }
+          grep -q 'dir="rtl"' frontend/index.html || { echo "::error::الاتجاه RTL غير مضبوط"; fail=1; }
+          [ "$(cat frontend/src/locales/ar.json)" != '{}' ] || { echo "::error::ar.json فارغ"; fail=1; }
+
+          [ "$fail" -eq 0 ] && echo "الأساس التقني كامل"
           exit "$fail"
 
-      - name: اختبار حاجز الأمان (يسمح بالآمن ويمنع الخطر)
+      # ---------- ولا تصميم مفروض ----------
+      - name: التحقق من عدم وجود تصميم مفروض في الأساس
         run: |
-          cd "$RUNNER_TEMP/work/smoke-proj"
-          echo '{"tool_input":{"command":"git status"}}' | bash .claude/hooks/guard.sh \
-            || { echo "::error::الحاجز منع أمرًا آمنًا"; exit 1; }
-          if echo '{"tool_input":{"command":"git push --force origin main"}}' | bash .claude/hooks/guard.sh; then
-            echo "::error::الحاجز لم يمنع الدفع القسري"; exit 1
+          cd "$GITHUB_WORKSPACE/plugins/kmk-plugin/starter"
+          fail=0
+          # هذه الأسماء تعني أن أحدًا حشا تصميمًا في الأساس — وهو ما تمنعه فلسفة الإضافة.
+          if find . \( -iname '*sidebar*' -o -iname '*navbar*' -o -iname '*topbar*' -o -iname '*dashboard*' \) | grep -q .; then
+            echo "::error::وُجد مكوّن تصميم في الأساس — الشكل من عمل /صمم وحده"
+            fail=1
           fi
-          if echo '{"tool_input":{"command":"php artisan migrate:fresh"}}' | bash .claude/hooks/guard.sh; then
-            echo "::error::الحاجز لم يمنع الأمر المدمّر لقاعدة البيانات"; exit 1
+          if grep -qE '#[0-9a-fA-F]{3,8}|rgba?\(' frontend/src/styles/theme.css; then
+            echo "::error::theme.css يحتوي ألوانًا — يبقى فارغًا حتى يملأه /صمم"
+            fail=1
           fi
-          echo "✔ الحاجز يعمل"
+          [ "$fail" -eq 0 ] && echo "لا تصميم مفروض: المعمار محدَّد والشكل حرّ"
+          exit "$fail"
 
-      - name: بوابة الواجهة (npm run check)
+      # ---------- الحواجز ----------
+      - name: اختبار حاجز الأمان
         run: |
-          cd "$RUNNER_TEMP/work/smoke-proj/frontend"
+          cd "$RUNNER_TEMP/work/smokeproj"
+          g=.claude/hooks/guard.sh
+          allow() {
+            if ! printf '%s' "$1" | bash "$g" >/dev/null 2>&1; then
+              echo "::error::الحاجز منع أمرًا آمنًا: $1"; exit 1
+            fi
+          }
+          deny() {
+            if printf '%s' "$1" | bash "$g" >/dev/null 2>&1; then
+              echo "::error::الحاجز لم يمنع: $1"; exit 1
+            fi
+          }
+          allow '{"tool_input":{"command":"git status"}}'
+          allow '{"tool_input":{"command":"echo X >> backend/.env"}}'
+          allow '{"tool_input":{"command":"git rm -r --force --quiet ."}}'
+          allow '{"cwd":"/tmp/.env","tool_input":{"command":"ls -la"}}'
+          deny  '{"tool_input":{"command":"cat backend/.env"}}'
+          deny  '{"tool_input":{"command":"rm -rf frontend"}}'
+          deny  '{"tool_input":{"command":"php artisan migrate:fresh"}}'
+          echo "الحاجز يعمل"
+
+      # ---------- بوابات الجودة ----------
+      - name: بوابة الواجهة
+        working-directory: ${{ runner.temp }}/work/smokeproj/frontend
+        run: |
           npm run check
+          npm run build
 
-      - name: بوابة الخدمات (pint + larastan + الاختبارات)
+      - name: بوابة الخدمات
+        working-directory: ${{ runner.temp }}/work/smokeproj/backend
         run: |
-          cd "$RUNNER_TEMP/work/smoke-proj/backend"
           ./vendor/bin/pint --test
-          ./vendor/bin/phpstan analyse --memory-limit=1G
+          ./vendor/bin/phpstan analyse --no-progress --memory-limit=1G
           php artisan test
 
-  mobile:
-    name: إضافة تطبيق الجوال والتحقق من بوابته وحارس النسخ
+      # ---------- الأدوار والمستخدمون مزروعون ----------
+      - name: التحقق من الزرع
+        working-directory: ${{ runner.temp }}/work/smokeproj/backend
+        run: |
+          php artisan tinker --execute="exit(\App\Models\User::where('email','admin@test.com')->exists() && \App\Models\User::where('email','staff@test.com')->exists() && \Spatie\Permission\Models\Role::where('name','admin')->exists() ? 0 : 1);"
+          echo "admin و staff والأدوار موجودون"
+
+      # ---------- العقد: الدخول يعمل والغلاف موحّد ----------
+      - name: اختبار عقد الخدمات
+        working-directory: ${{ runner.temp }}/work/smokeproj/backend
+        run: |
+          php artisan serve --port=8000 >/tmp/serve.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8000/up >/dev/null && break
+            sleep 1
+          done
+          API=http://127.0.0.1:8000/api/v1
+          JSON='Content-Type: application/json'
+          ACC='Accept: application/json'
+
+          # كلمة سر خاطئة → 422 برسالة عربية فعلًا، لا بنص Laravel الافتراضي
+          code=$(curl -s -o /tmp/r.json -w '%{http_code}' -X POST "$API/auth/login" \
+            -H "$JSON" -H "$ACC" -d '{"email":"admin@test.com","password":"wrong"}')
+          if [ "$code" != 422 ]; then echo "::error::توقّعت 422 وجاء $code"; cat /tmp/r.json; exit 1; fi
+          jq -e '.success == false and .data == null and has("errors")' /tmp/r.json >/dev/null \
+            || { echo "::error::غلاف الخطأ غير موحّد"; cat /tmp/r.json; exit 1; }
+          jq -e '.errors.email[0] | test("[؀-ۿ]")' /tmp/r.json >/dev/null \
+            || { echo "::error::رسالة التحقق ليست عربية"; cat /tmp/r.json; exit 1; }
+
+          # كلمة سر صحيحة → 200 وتوكن
+          TOKEN=$(curl -sf -X POST "$API/auth/login" -H "$JSON" -H "$ACC" \
+            -d '{"email":"admin@test.com","password":"password"}' | jq -r '.data.token')
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = null ]; then echo "::error::تسجيل الدخول فشل"; exit 1; fi
+
+          # me → الصلاحيات موجودة وكلمة السر غير مسرّبة
+          curl -sf "$API/auth/me" -H "Authorization: Bearer $TOKEN" -H "$ACC" \
+            | jq -e '.success == true and .data.role == "admin" and (.data.permissions | type == "array") and (.data | has("password") | not)' >/dev/null \
+            || { echo "::error::رد /auth/me لا يطابق العقد"; exit 1; }
+
+          # بلا توكن → 401 بالغلاف الموحّد.
+          # هذا الاختبار هو الذي يثبت ربط معالج الأخطاء: Laravel الافتراضي يحوّل أو يرجع HTML.
+          code=$(curl -s -o /tmp/r.json -w '%{http_code}' "$API/auth/me" -H "$ACC")
+          if [ "$code" != 401 ]; then echo "::error::توقّعت 401 وجاء $code"; exit 1; fi
+          jq -e '.success == false' /tmp/r.json >/dev/null \
+            || { echo "::error::401 لا يستخدم الغلاف الموحّد — معالج الأخطاء غير مربوط"; exit 1; }
+
+          # مسار غير موجود → 404 بالمفاتيح الأربعة نفسها
+          code=$(curl -s -o /tmp/r.json -w '%{http_code}' "$API/does-not-exist" -H "$ACC")
+          if [ "$code" != 404 ]; then echo "::error::توقّعت 404 وجاء $code"; exit 1; fi
+          jq -e 'has("success") and has("data") and has("message") and has("errors")' /tmp/r.json >/dev/null \
+            || { echo "::error::404 لا يستخدم الغلاف الموحّد"; exit 1; }
+
+          echo "العقد مطابق: الدخول يعمل والغلاف موحّد في كل الحالات"
+
+  idempotent:
+    name: إعادة التشغيل تُكمل ولا تبدأ من جديد
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      npm_config_yes: "true"
+    timeout-minutes: 25
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -proot"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.3"
-          extensions: mbstring, xml, curl, sqlite3, pdo_sqlite
+          php-version: '8.3'
+          extensions: mbstring, xml, curl, zip, pdo_mysql
           tools: composer:v2
+      - run: |
+          git config --global user.name ci
+          git config --global user.email ci@ci.local
 
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: تهيئة هوية Git
+      # الاستئناف موعود به في /ابدأ ولم يُختبر قبل اليوم.
+      - name: تشغيل السكربت مرتين على نفس المجلد
         run: |
-          git config --global user.name "smoke-test"
-          git config --global user.email "smoke-test@ci.local"
-
-      - name: إنشاء المشروع الأساسي
-        run: |
-          mkdir -p "$RUNNER_TEMP/work"
-          cd "$RUNNER_TEMP/work"
-          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/setup-project.sh" smoke-proj
-
-      - name: تجهيز بيئة الجوال بسكربت الإضافة نفسه
-        run: |
-          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/setup-mobile.sh"
-          test -f "$HOME/.kmk-mobile-env"
-          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/doctor-mobile.sh"
-
-      - name: إضافة تطبيق الجوال
-        run: |
-          source "$HOME/.kmk-mobile-env"
-          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/add-mobile.sh" "$RUNNER_TEMP/work/smoke-proj" clinic com.kmk
-
-      - name: التحقق من بنية الجوال
-        run: |
-          cd "$RUNNER_TEMP/work/smoke-proj"
-          fail=0
-          for p in \
-            mobile/pubspec.yaml \
-            mobile/analysis_options.yaml \
-            mobile/lib/app/router.dart \
-            mobile/lib/shared/api/api_config.dart \
-            mobile/lib/shared/l10n/app_ar.arb \
-            mobile/lib/shared/widgets/feedback/error_state.dart \
-            backend/app/Modules/Mobile/Services/AppVersionService.php \
-            backend/config/mobile.php \
-            backend/routes/api/v1/mobile.php \
-            .claude/agents/flutter-builder.md \
-            .claude/skills/build-mobile/SKILL.md \
-            .github/workflows/mobile-release.yml ; do
-            [ -f "$p" ] || { echo "::error::ملف ناقص: $p"; fail=1; }
-          done
-          grep -q '^name: build-mobile' .claude/skills/build-mobile/SKILL.md || { echo "::error::اسم أمر الجوال لا يطابق مجلده"; fail=1; }
-          grep -q 'kmk:mobile' CLAUDE.md || { echo "::error::قسم الجوال ناقص من الدستور"; fail=1; }
-          grep -q 'kmk:mobile' docs/api-contract.md || { echo "::error::قسم الجوال ناقص من العقد"; fail=1; }
-          grep -q '^  generate: true' mobile/pubspec.yaml || { echo "::error::توليد الترجمة غير مفعّل"; fail=1; }
-          grep -q 'android.permission.INTERNET' mobile/android/app/src/main/AndroidManifest.xml || { echo "::error::صلاحية الإنترنت ناقصة"; fail=1; }
-          [ ! -e mobile/test/widget_test.dart ] || { echo "::error::اختبار القالب الافتراضي لم يُحذف"; fail=1; }
-          known='idea|apply-design|build-web|build-mobile|test|share-link|deploy|fix|go-back|start|add-mobile'
-          stray=$(grep -rhoE '`/[a-z][a-z-]+[` ]' .claude CLAUDE.md docs | sed -E 's/[` ]$//' | sort -u | grep -vE "^\`/($known)$" || true)
-          [ -z "$stray" ] || { echo "::error::مرجع لأمر غير معروف: $stray"; fail=1; }
-          [ "$fail" -eq 0 ] && echo "✔ بنية الجوال سليمة"
-          exit "$fail"
-
-      - name: بوابة الجوال (analyze + format + test)
-        run: |
-          source "$HOME/.kmk-mobile-env"
-          cd "$RUNNER_TEMP/work/smoke-proj/mobile"
-          flutter analyze
-          dart format --set-exit-if-changed lib test
-          flutter test
-
-      - name: بوابة الخدمات مع موديول الجوال
-        run: |
-          cd "$RUNNER_TEMP/work/smoke-proj/backend"
-          ./vendor/bin/pint --test
-          ./vendor/bin/phpstan analyse --memory-limit=1G
-          php artisan test
-
-      - name: حارس التوافق يكشف حذف حقل ويقبل إضافة حقل
-        run: |
-          cd "$RUNNER_TEMP/work/smoke-proj/backend"
-          snapshot=tests/api-snapshots/v1/mobile.app-version.json
-          test -f "$snapshot" || { echo "::error::لم يُحفظ شكل الرد"; exit 1; }
-          cp "$snapshot" /tmp/snapshot.bak
-
-          # حقل كان موجودًا ولم يعد الرد يحمله = كسر
-          php -r '$f=$argv[1]; $s=json_decode(file_get_contents($f), true); $s["data"]["removed_field"]="string"; file_put_contents($f, json_encode($s));' "$snapshot"
-          if php artisan test --filter=AppVersionTest > /tmp/guard.txt 2>&1; then
-            echo "::error::الحارس لم يكشف حذف الحقل"; exit 1
+          mkdir -p "$RUNNER_TEMP/w"
+          cd "$RUNNER_TEMP/w"
+          S="$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/setup-project.sh"
+          bash "$S" twice root root
+          bash "$S" twice root root
+          cd twice
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::التشغيل الثاني غيّر ملفات"
+            git status --short
+            exit 1
           fi
-          grep -q "removed_field" /tmp/guard.txt || { cat /tmp/guard.txt; echo "::error::رسالة الحارس لا تسمّي الحقل المحذوف"; exit 1; }
-
-          # حقل جديد في الرد = مسموح ويُسجَّل
-          php -r '$f=$argv[1]; $s=json_decode(file_get_contents("/tmp/snapshot.bak"), true); unset($s["data"]["latest"]); file_put_contents($f, json_encode($s));' "$snapshot"
-          php artisan test --filter=AppVersionTest
-          grep -q '"latest"' "$snapshot" || { echo "::error::الحقل الجديد لم يُسجَّل في الشكل"; exit 1; }
-          echo "✔ الحارس يعمل"
-
-      - name: الرفع الآلي لنسخة الـ API
-        run: |
-          source "$HOME/.kmk-mobile-env"
-          cd "$RUNNER_TEMP/work/smoke-proj"
-          CLAUDE_PROJECT_DIR="$PWD" bash .claude/scripts/bump-api-version.sh "اختبار دخان: تغيير شكل رد"
-          test -f backend/routes/api/v2/mobile.php || { echo "::error::لم تُنشأ مسارات v2"; exit 1; }
-          grep -q "apiVersion = 'v2'" mobile/lib/shared/api/api_config.dart || { echo "::error::التطبيق لم يُوجَّه إلى v2"; exit 1; }
-          grep -q '^| v2 | 1.0.0 |' docs/api-contract.md || { echo "::error::النسخة لم تُسجَّل في العقد"; exit 1; }
-          grep -q 'النسخة الأحدث: \*\*v2\*\*' docs/api-contract.md || { echo "::error::لم يُحدَّث رقم النسخة الأحدث"; exit 1; }
-          cd backend
-          php artisan route:cache
-          php artisan route:clear
-          php artisan route:list --path=api/v2 --json | grep -qE 'Controllers.{1,2}V1.{1,2}AppVersionController' || { echo "::error::نقاط v2 لا تشير إلى Controllers النسخة السابقة"; exit 1; }
-          php artisan test
-          cd ../mobile && flutter analyze
-          echo "✔ الرفع الآلي يعمل والنسختان تعملان معًا"
-
-      - name: بناء التطبيق لـ Android
-        run: |
-          source "$HOME/.kmk-mobile-env"
-          cd "$RUNNER_TEMP/work/smoke-proj/mobile"
-          flutter build apk --debug
-          test -f build/app/outputs/flutter-apk/app-debug.apk
-
-  mobile-windows:
-    name: سكربتات الجوال على Windows (Git Bash) كما يشغّلها المتدرب
-    runs-on: windows-latest
-    timeout-minutes: 45
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: تهيئة هوية Git
-        run: |
-          git config --global user.name "smoke-test"
-          git config --global user.email "smoke-test@ci.local"
-
-      # جهاز المتدرب ليس عليه Android SDK: نبدأ من مجلد فارغ ليُختبر التنزيل وقبول التراخيص
-      - name: تجهيز بيئة الجوال من جهاز بلا Android SDK
-        run: |
-          export ANDROID_HOME="$RUNNER_TEMP/fresh-android-sdk"
-          export ANDROID_SDK_ROOT="$ANDROID_HOME"
-          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/setup-mobile.sh"
-          test -f "$HOME/.kmk-mobile-env"
-          source "$HOME/.kmk-mobile-env"
-          test -e "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager.bat" || { echo "::error::أدوات Android لم تُنزَّل"; exit 1; }
-          test -e "$ANDROID_HOME/platform-tools/adb.exe" || { echo "::error::adb لم يُثبَّت — التراخيص أو التنزيل فشل"; exit 1; }
-          ls "$ANDROID_HOME/licenses" | grep -q . || { echo "::error::التراخيص لم تُقبل"; exit 1; }
-          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/doctor-mobile.sh"
-
-      - name: مشروع هيكلي ثم إضافة تطبيق الجوال
-        run: |
-          source "$HOME/.kmk-mobile-env"
-          mkdir -p "$RUNNER_TEMP/work/win-proj/backend" "$RUNNER_TEMP/work/win-proj/docs"
-          cd "$RUNNER_TEMP/work/win-proj"
-          cp "$GITHUB_WORKSPACE/plugins/kmk-plugin/templates/CLAUDE.md" .
-          cp "$GITHUB_WORKSPACE/plugins/kmk-plugin/templates/docs/api-contract.md" docs/
-          git init -q && git add -A && git commit -q -m "هيكل"
-          bash "$GITHUB_WORKSPACE/plugins/kmk-plugin/scripts/add-mobile.sh" . clinic com.kmk
-
-      - name: التحقق من البنية على Windows
-        run: |
-          cd "$RUNNER_TEMP/work/win-proj"
-          fail=0
-          grep -q '^  generate: true' mobile/pubspec.yaml || { echo "::error::توليد الترجمة غير مفعّل"; fail=1; }
-          grep -q 'android.permission.INTERNET' mobile/android/app/src/main/AndroidManifest.xml || { echo "::error::صلاحية الإنترنت ناقصة"; fail=1; }
-          grep -q 'package:clinic/' mobile/test/version_test.dart || { echo "::error::اسم الحزمة لم يُستبدل في الاختبارات"; fail=1; }
-          [ -f backend/app/Modules/Mobile/Services/AppVersionService.php ] || { echo "::error::موديول الخدمات لم يُنسخ"; fail=1; }
-          grep -q 'kmk:mobile' CLAUDE.md || { echo "::error::قسم الجوال ناقص من الدستور"; fail=1; }
-          exit "$fail"
-
-      - name: بوابة الجوال
-        run: |
-          source "$HOME/.kmk-mobile-env"
-          cd "$RUNNER_TEMP/work/win-proj/mobile"
-          flutter analyze
-          dart format --set-exit-if-changed lib test
-          flutter test
-
-      - name: الرفع الآلي لنسخة الـ API
-        run: |
-          cd "$RUNNER_TEMP/work/win-proj"
-          mkdir -p .claude/scripts backend/routes/api/v1
-          cp "$GITHUB_WORKSPACE/plugins/kmk-plugin/templates/.claude/scripts/bump-api-version.sh" .claude/scripts/
-          CLAUDE_PROJECT_DIR="$PWD" bash .claude/scripts/bump-api-version.sh "اختبار دخان على Windows"
-          test -f backend/routes/api/v2/mobile.php || { echo "::error::لم تُنشأ مسارات v2"; exit 1; }
-          grep -q "apiVersion = 'v2'" mobile/lib/shared/api/api_config.dart || { echo "::error::التطبيق لم يُوجَّه إلى v2"; exit 1; }
-          grep -q '^| v2 | 1.0.0 |' docs/api-contract.md || { echo "::error::النسخة لم تُسجَّل في العقد"; exit 1; }
+          echo "التشغيل الثاني آمن ولم يغيّر شيئًا"

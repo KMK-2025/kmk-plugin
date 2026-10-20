@@ -2,11 +2,27 @@
 
 ينشئ ويدير مشاريع ويب عربية RTL لمستخدم لا يعرف البرمجة.
 
-**الحزمة التقنية:** React · TypeScript · Vite · Bootstrap 5 RTL · TanStack Query · React Hook Form · Zod · Zustand · i18next · Laravel 11 · MySQL/MariaDB · Sanctum · spatie/permission
+**الأمر:** `/ابدأ <اسم-المشروع>`
 
-**الأمر:** `/start <اسم-المشروع>`
+## ما ينتجه
 
-**المتطلبات على الجهاز:** Node.js · Git · PHP 8.2+ · Composer · MySQL أو XAMPP
+مشروعًا **يعمل فعلًا** لا هيكلًا فارغًا: تسجيل دخول حقيقي، صلاحيات وأدوار مزروعة،
+غلاف ردود موحّد، بنية مسارات جاهزة، اختبارات تمر، وبوابات جودة خضراء.
+
+**ولا يفرض أي تصميم.** لا قائمة جانبية ولا شريط علوي ولا ألوان ولا خطوط —
+صاحب النظام يضع صوره المرجعية في `docs/design/` ثم `/صمم` يبني الشكل منها.
+
+```
+الإضافة تحدّد:  المعمار · عقد الخدمات · المصادقة · الصلاحيات · الاختبارات · الأمان
+/صمم يحدّد:     التخطيط · التنقّل · الألوان · الخطوط · شكل كل مكوّن
+```
+
+**الحزمة التقنية:** React 19 · TypeScript · Vite 6 · Bootstrap 5 RTL · TanStack Query ·
+React Hook Form · Zod · Zustand · i18next · Laravel 12 · MySQL · Sanctum · spatie/permission
+
+**المتطلبات على الجهاز:** Node 20.19+ · Git · PHP 8.2+ · Composer · MySQL أو XAMPP
 الأمر يفحصها ويرشدك لما ينقص. على Windows شغّله من Git Bash.
 
-**الحواجز المفعّلة:** منع `migrate:fresh` و `db:wipe` و `rm -rf` و `git push --force` و `reset --hard` وأي عملية على `.env`.
+**الحواجز المفعّلة:** منع `migrate:fresh` و `db:wipe` و `rm -rf` و `git push --force`
+و `reset --hard`، ومنع **طباعة** `.env` أو إدخاله في Git (وإنشاؤه مسموح — السكربت
+يحتاجه)، ومنع الرفع من فرع الإصدار.

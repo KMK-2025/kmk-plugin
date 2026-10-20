@@ -1,0 +1,22 @@
+# نهايات الأسطر LF في كل ملفات المشروع.
+#
+# ليست تفصيلة تجميلية: على Windows يحوّل Git النهايات إلى CRLF افتراضيًا
+# (core.autocrlf)، فيفشل `prettier --check` داخل `npm run check` على ملفات
+# لم يلمسها أحد — بعد أول عملية Git فقط. وهذا عطل لا يستطيع صاحب النظام
+# تشخيصه، لأن الملف يبدو سليمًا في المحرّر.
+* text=auto eol=lf
+
+# سكربتات bash تُكسرها CRLF على Git Bash
+*.sh text eol=lf
+
+# ملفات ثنائية لا تُلمس
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.pdf binary
+*.sql binary

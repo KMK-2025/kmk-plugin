@@ -1,2 +1,16 @@
 # سكربتات bash يجب أن تبقى LF دائمًا — CRLF يكسرها على Git Bash في Windows
 *.sh text eol=lf
+
+# وكل ما يُنسخ إلى مشروع المستخدم.
+# بلا هذا: يستخرج مستخدم Windows الملفات بـ CRLF، فتُنسخ كذلك إلى مشروعه،
+# فتفشل بوابة prettier على ملفات شحنّاها نحن — بينما CI الأخضر لا يرى شيئًا.
+starter/**   text eol=lf
+templates/** text eol=lf
+plugins/kmk-plugin/starter/**   text eol=lf
+plugins/kmk-plugin/templates/** text eol=lf
+
+# صور التصميم ولقطات الشاشة
+*.png binary
+*.jpg binary
+*.woff binary
+*.woff2 binary

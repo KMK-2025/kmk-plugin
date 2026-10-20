@@ -10,7 +10,10 @@
       "Bash(git reset --hard*)",
       "Bash(rm -rf*)",
       "Bash(php artisan migrate:fresh*)",
-      "Bash(php artisan db:wipe*)"
+      "Bash(php artisan db:wipe*)",
+      "Edit(./frontend/src/shared/api/client.ts)",
+      "Edit(./backend/bootstrap/app.php)",
+      "Edit(./backend/app/Support/**)"
     ],
     "allow": [
       "Bash(npm run*)",
@@ -30,10 +33,6 @@
       "Bash(npx eslint*)",
       "Bash(npx prettier*)",
       "Bash(npx vitest*)",
-      "Bash(bash .claude/scripts/bump-api-version.sh*)",
-      "Bash(flutter *)",
-      "Bash(dart *)",
-      "Bash(adb *)",
       "Bash(git status*)",
       "Bash(git diff*)",
       "Bash(git log*)",
@@ -42,7 +41,19 @@
       "Bash(git branch*)",
       "Bash(docker compose*)",
       "Bash(docker*)",
-      "Bash(cloudflared*)"
+      "Bash(cloudflared*)",
+      "Bash(npm ci*)",
+      "Bash(npm run check*)",
+      "Bash(npm run build*)",
+      "Bash(git tag*)",
+      "Bash(git rm -r --force*)",
+      "Bash(git for-each-ref*)",
+      "Bash(git push origin work*)",
+      "Bash(gh repo create*)",
+      "Bash(gh run*)",
+      "Bash(php artisan lang:publish*)",
+      "Bash(php artisan tinker*)",
+      "Bash(mysql*)"
     ],
     "defaultMode": "acceptEdits"
   },

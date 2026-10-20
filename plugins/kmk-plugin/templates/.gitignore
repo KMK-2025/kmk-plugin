@@ -1,3 +1,7 @@
+# ملفات التجهيز المؤقتة
+.setup-state
+.setup.log
+
 # أسرار — لا تُرفع أبدًا
 .env
 .env.*
@@ -29,6 +33,3 @@ Thumbs.db
 .idea/
 .vscode/
 *.log
-
-# لقطات فحص مؤقتة
-.claude/tmp/

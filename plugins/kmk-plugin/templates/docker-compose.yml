@@ -14,7 +14,9 @@ services:
       MYSQL_PASSWORD: app
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     ports:
-      - "3306:3306"
+      # مربوط على الحلقة المحلية فقط: بلا هذا تخدم قاعدة بيانات
+      # بكلمة سر root/root كل من هو على نفس الشبكة (مقهى، مكتب مشترك).
+      - "127.0.0.1:3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
@@ -30,7 +32,7 @@ services:
     container_name: app-adminer
     restart: unless-stopped
     ports:
-      - "8081:8080"
+      - "127.0.0.1:8081:8080"
     depends_on:
       - mysql
 
